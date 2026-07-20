@@ -1,29 +1,54 @@
-module n_bit_alu #(parameter  n = 19 ) (
-    input wire [n-1 : 0] a,
-    input wire [n-1 : 0] b,
-    input wire [2:0] alu_control, //0,1,2 are 3 bits so we can have 2³ operations ie 8
-    output reg [n-1 : 0] result,
-    output wire zero //flag output for checking zero/2 numbers being equal
+`default_nettype none
+
+module tt_um_yutish3_alu (
+    input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
+    input  wire [7:0] uio_in,   // IO: Bidirectional Input path
+    output wire [7:0] uio_out,  // IO: Bidirectional Output path
+    output wire [7:0] uio_oe,   // IO: Bidirectional Enable path
+    input  wire       ena,      // always 1 when the design is powered
+    input  wire       clk,      // clock
+    input  wire       rst_n     // reset_n - low to reset
 );
 
-always @(*) begin
-    case (alu_control)
-    3'b000: result = a + b;  //if input wire is 000 it adds
-    3'b001: result = a - b;  //if input wire is 000 it subtracts
-    3'b010: result = a & b;  //if input wire is 000 it performs bitwise of AND gate
-    3'b011: result = a | b;  //if input wire is 000 it performs bitwise of OR gate
-    3'b100: result = a ^ b;  //if input wire is 000 it performs bitwise of XOR gate
-    3'b101: result = a << 1; //if input wire is 101 it shifts input a to the left by 1 position (multiplying by 2)
-    3'b110: result = a >> 1; //if input wire is 110 it shifts input a to the right by 1 position (divides by 2)
-    default: result = 0; //sets result to 0 in case of unexpected code
-    endcase
-end
+    // We don't use bidirectional pins, so we keep them as inputs (set enable to 0)
+    assign uio_oe  = 8'b00000000;
+    assign uio_out = 8'b00000000;
 
-assign zero = (result == 0) ? 1'b1 : 1'b0; //it checks if both are equal or not
+    // Pin Mapping Strategy:
+    // ui_in[2:0] -> alu_control (3 bits)
+    // ui_in[5:3] -> input 'a'   (3 bits)
+    // ui_in[7:6] -> input 'b'   (2 bits - combined with uio_in for more bits if needed)
+    // Let's use uio_in to expand our data so we can do a full 4-bit ALU:
+    // a = {ui_in[6], ui_in[5], ui_in[4], ui_in[3]} (4 bits)
+    // b = {ui_in[7], uio_in[2], uio_in[1], uio_in[0]} (4 bits)
+
+    wire [3:0] a = ui_in[6:3];
+    wire [3:0] b = {ui_in[7], uio_in[2:0]};
+    wire [2:0] alu_control = ui_in[2:0];
+
+    reg [3:0] alu_result;
+    wire zero;
+
+    // Your ALU logic adapted for 4-bit operations to fit pins perfectly
+    always @(*) begin
+        case (alu_control)
+            3'b000:  alu_result = a + b;
+            3'b001:  alu_result = a - b;
+            3'b010:  alu_result = a & b;
+            3'b011:  alu_result = a | b;
+            3'b100:  alu_result = a ^ b;
+            3'b101:  alu_result = a << 1;
+            3'b110:  alu_result = a >> 1;
+            default: alu_result = 4'b0000;
+        endcase
+    end
+
+    assign zero = (alu_result == 4'b0000) ? 1'b1 : 1'b0;
+
+    // Map your results back to the chip's physical output pins
+    // uo_out[3:0] will show the math result
+    // uo_out[4]   will light up if the result is Zero
+    assign uo_out = {3'b000, zero, alu_result};
 
 endmodule
-
-
-/*this one is simple except the 101 and 110 so how it works is 
-ex number is 14 so in 5 bits it will be 01110 ie 8+4+2 if we move them left by 1 it will be 11100 16+8+4 = 28 twice of 14
-same goes for dividing*/
